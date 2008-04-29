@@ -3,8 +3,8 @@
 /*
   Part of the Processing project - http://processing.org
 
-  Copyright (c) 2004-07 Ben Fry and Casey Reas
-  Copyright (c) 2001-04 Massachusetts Institute of Technology
+  Authored by John Lee <john_lee@openmoko.com>
+  Copyright (c) 2008 Openmoko Inc.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -192,6 +192,7 @@ public class PApplet extends Applet
     } else {
       platform = OTHER;
     }
+    System.loadLibrary("processing-core");
   }
 
   /**
@@ -531,7 +532,6 @@ in   */
   // for 0116, the CRUSTY_THREADS are being disabled to fix lots of bugs.
   static final boolean CRUSTY_THREADS = false; //true;
 
-
   public void init() {
     // first get placed size in case it's non-zero
     Dimension initialSize = getSize();
@@ -633,6 +633,7 @@ in   */
     thread.start();
   }
 
+  native void native_unload();
 
   /**
    * Called by the browser or applet viewer to inform
@@ -661,8 +662,8 @@ in   */
     // maybe this should be done earlier? might help ensure it gets called
     // before the vm just craps out since 1.5 craps out so aggressively.
     disposeMethods.handle();
+    native_unload();
   }
-
 
   /**
    * Called by the browser or applet viewer to inform this applet
@@ -919,6 +920,7 @@ in   */
     */
   }
 
+  native void native_createGraphics(int width, int height);
 
   /**
    * Starts up and creates a two-dimensional drawing surface,
@@ -936,7 +938,8 @@ in   */
    * use the previous renderer and simply resize it.
    */
   public void size(int iwidth, int iheight) {
-    size(iwidth, iheight, JAVA2D, null);
+    native_createGraphics(iwidth, iheight);
+    //    size(iwidth, iheight, JAVA2D, null);
     //setSize(iwidth, iheight);
     //defaultSize = false;
 
@@ -7398,10 +7401,10 @@ in   */
     g.endShape(mode);
   }
 
+  native void native_point(int x, int y);
 
   public void point(float x, float y) {
-    if (recorder != null) recorder.point(x, y);
-    g.point(x, y);
+    native_point((int) x, (int) y);
   }
 
 
@@ -7989,10 +7992,10 @@ in   */
     g.noStroke();
   }
 
+  native void native_stroke(int gray);
 
   public void stroke(int rgb) {
-    if (recorder != null) recorder.stroke(rgb);
-    g.stroke(rgb);
+    native_stroke(rgb);
   }
 
 
@@ -8001,10 +8004,8 @@ in   */
     g.stroke(rgb, alpha);
   }
 
-
   public void stroke(float gray) {
-    if (recorder != null) recorder.stroke(gray);
-    g.stroke(gray);
+    native_stroke((int) gray);
   }
 
 
