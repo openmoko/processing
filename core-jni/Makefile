@@ -1,5 +1,5 @@
 .PHONY: all
-all: preproc core.jar
+all: core.jar
 
 core.jar: $(wildcard src/processing/core/*.java)
 	-mkdir classes
