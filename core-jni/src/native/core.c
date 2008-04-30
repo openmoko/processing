@@ -105,7 +105,6 @@ JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1createGraphics
  */
 JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
     (JNIEnv * jnienv, jobject jobj, jint x, jint y) {
-
     /* Lock the screen for direct access to the pixels */
     if (SDL_MUSTLOCK(screen)) {
 	if (SDL_LockSurface(screen) < 0) {
@@ -119,8 +118,6 @@ JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
     if (SDL_MUSTLOCK(screen)) {
 	SDL_UnlockSurface(screen);
     }
-    /* Update just the part of the display that we've changed */
-    SDL_UpdateRect(screen, x, y, 1, 1);
 }
 
 /*
@@ -131,4 +128,15 @@ JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
 JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1stroke
     (JNIEnv * jnienv, jobject jobj, jint gray) {
     stroke = SDL_MapRGB(screen->format, gray, gray, gray);
+}
+
+/*
+ * Class:     processing_core_PApplet
+ * Method:    native_update_rect
+ * Signature: (II)V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1update_1rect
+    (JNIEnv * jnienv, jobject jobj, jint width, jint height) {
+    fprintf(stderr, "%s\n", __func__);
+    SDL_UpdateRect(screen, 0, 0, width, height);
 }

@@ -38,112 +38,182 @@ import java.util.zip.*;
 
 import javax.imageio.ImageIO;
 
-
-/**
- * Base class for all sketches that use processing.core.
- * <p/>
- * Note that you should not use AWT or Swing components inside a Processing
- * applet. The surface is made to automatically update itself, and will cause
- * problems with redraw of components drawn above it. If you'd like to
- * integrate other Java components, see below.
- * <p/>
- * As of release 0126 of Processing, we have discontinued support for versions
- * of Java prior to 1.4. We don't have enough people to support it, and for a
- * project of our size, we should be focusing on the future, rather than
- * working around legacy Java code.
- * <p/>
- * This class extends Applet instead of JApplet because 1) historically,
- * we supported Java 1.1, which does not include Swing (without an
- * additional, sizable, download), and 2) Swing is a bloated piece of crap.
- * A Processing applet is a heavyweight AWT component, and can be used the
- * same as any other AWT component, with or without Swing.
- * <p/>
- * Similarly, Processing runs in a Frame and not a JFrame. However, there's
- * nothing to prevent you from embedding a PApplet into a JFrame, it's just
- * that the base version uses a regular AWT frame because there's simply
- * no need for swing in that context. If people want to use Swing, they can
- * embed themselves as they wish.
- * <p/>
- * It is possible to use PApplet, along with core.jar in other projects.
- * In addition to enabling you to use Java 1.5+ features with your sketch,
- * this also allows you to embed a Processing drawing area into another Java
- * application. This means you can use standard GUI controls with a Processing
- * sketch. Because AWT and Swing GUI components cannot be used on top of a
- * PApplet, you can instead embed the PApplet inside another GUI the wayyou
- * would any other Component.
- * <p/>
- * Because the default animation thread will run at 60 frames per second,
- * an embedded PApplet can make the parent sluggish. You can use frameRate()
- * to make it update less often, or you can use noLoop() and loop() to disable
- * and then re-enable looping. If you want to only update the sketch
- * intermittently, use noLoop() inside setup(), and redraw() whenever
- * the screen needs to be updated once (or loop() to re-enable the animation
- * thread). The following example embeds a sketch and also uses the noLoop()
- * and redraw() methods. You need not use noLoop() and redraw() when embedding
- * if you want your application to animate continuously.
- * <PRE>
- * public class ExampleFrame extends Frame {
- *
- *     public ExampleFrame() {
- *         super("Embedded PApplet");
- *
- *         setLayout(new BorderLayout());
- *         PApplet embed = new Embedded();
- *         add(embed, BorderLayout.CENTER);
- *
- *         // important to call this whenever embedding a PApplet.
- *         // It ensures that the animation thread is started and
- *         // that other internal variables are properly set.
- *         embed.init();
- *     }
- * }
- *
- * public class Embedded extends PApplet {
- *
- *     public void setup() {
- *         // original setup code here ...
- *         size(400, 400);
- *
- *         // prevent thread from starving everything else
- *         noLoop();
- *     }
- *
- *     public void draw() {
- *         // drawing code goes here
- *     }
- *
- *     public void mousePressed() {
- *         // do something based on mouse movement
- *
- *         // update the screen (run draw once)
- *         redraw();
- *     }
- * }
- * </PRE>
- *
- * <H2>Processing on multiple displays</H2>
- * <P>I was asked about Processing with multiple displays, and for lack of a
- * better place to document it, things will go here.</P>
- * <P>You can address both screens by making a window the width of both,
- * and the height of the maximum of both screens. In this case, do not use
- * present mode, because that's exclusive to one screen. Basically it'll
- * give you a PApplet that spans both screens. If using one half to control
- * and the other half for graphics, you'd just have to put the 'live' stuff
- * on one half of the canvas, the control stuff on the other. This works
- * better in windows because on the mac we can't get rid of the menu bar
- * unless it's running in present mode.</P>
- * <P>For more control, you need to write straight java code that uses p5.
- * You can create two windows, that are shown on two separate screens,
- * that have their own PApplet. this is just one of the tradeoffs of one of
- * the things that we don't support in p5 from within the environment
- * itself (we must draw the line somewhere), because of how messy it would
- * get to start talking about multiple screens. It's also not that tough to
- * do by hand w/ some Java code.</P>
- */
 public class PApplet extends Applet
   implements PConstants, Runnable,
              MouseListener, MouseMotionListener, KeyListener, FocusListener
 {
+  /* put native functions here */
+  static { System.loadLibrary("processing-core"); }
+  native void native_createGraphics(int width, int height);
+  native void native_unload();
+  native void native_point(int x, int y);
+  native void native_stroke(int gray);
+  native void native_update_rect(int width, int height);
+  /* end of native functions */
+
+  /**
+   * Command line options passed in from main().
+   * <P>
+   * This does not include the arguments passed in to PApplet itself.
+   */
+  public String args[];
+
+  static public final String ARGS_BGCOLOR = "--bgcolor";
+
+  static public final String ARGS_DISPLAY = "--display";
+
+  /**
+   * Position of the upper-lefthand corner of the editor window
+   * that launched this applet.
+   */
+  static public final String ARGS_EDITOR_LOCATION = "--editor-location";
+
+  /**
+   * Location for where to position the applet window on screen.
+   * <P>
+   * This is used by the editor to when saving the previous applet
+   * location, or could be used by other classes to launch at a
+   * specific position on-screen.
+   */
+  static public final String ARGS_EXTERNAL = "--external";
+
+  static public final String ARGS_HIDE_STOP = "--hide-stop";
+
+  static public final String ARGS_LOCATION = "--location";
+
+  static public final String ARGS_PRESENT = "--present";
+
+  /**
+   * Allows the user or PdeEditor to set a specific sketch folder path.
+   * <P>
+   * Used by PdeEditor to pass in the location where saveFrame()
+   * and all that stuff should write things.
+   */
+  static public final String ARGS_SKETCH_FOLDER = "--sketch-path";
+
+  static public final String ARGS_STOP_COLOR = "--stop-color";
+
+  /** Default width and height for applet when not specified */
+  static public final int DEFAULT_HEIGHT = 100;
+  static public final int DEFAULT_WIDTH = 100;
+
+  /**
+   * true if no size() command has been executed. This is used to wait until
+   * a size has been set before placing in the window and showing it.
+   */
+  public boolean defaultSize;
+
+  protected RegisteredMethods sizeMethods;
+  protected RegisteredMethods preMethods, drawMethods, postMethods;
+  protected RegisteredMethods mouseEventMethods, keyEventMethods;
+  protected RegisteredMethods disposeMethods;
+
+  /**
+   * previous mouseX/Y for the draw loop, separated out because this is
+   * separate from the pmouseX/Y when inside the mouse event handlers.
+   */
+  protected int dmouseX, dmouseY;
+
+  /**
+   * pmouseX/Y for the event handlers (mousePressed(), mouseDragged() etc)
+   * these are different because mouse events are queued to the end of
+   * draw, so the previous position has to be updated on each event,
+   * as opposed to the pmouseX/Y that's used inside draw, which is expected
+   * to be updated once per trip through draw().
+   */
+  protected int emouseX, emouseY;
+
+  /**
+   * Set to the an exception that occurs inside run() and is not
+   * caught. <P> Used by PdeRuntime to determine what happened and
+   * report back to the user.
+   */
+  public Exception exception;
+
+  /**
+   * true if exit() has been called so that things shut down
+   * once the main thread kicks off.
+   */
+  protected boolean exit;
+
+  /**
+   * When run externally to a PDE Editor, this is sent by the applet
+   * whenever the window is moved.
+   * <P>
+   * This is used so that the editor can re-open the sketch window
+   * in the same position as the user last left it.
+   */
+  static public final String EXTERNAL_MOVE = "__MOVE__";
+
+  /**
+   * When run externally to a PdeEditor,
+   * this is sent by the applet when it quits.
+   */
+  static public final String EXTERNAL_QUIT = "__QUIT__";
+
+  /**
+   * Message from parent editor (when run as external) to quit.
+   */
+  static public final char EXTERNAL_STOP = 's';
+
+  /**
+   * true if this applet has had it.
+   */
+  public boolean finished;
+
+  /**
+   * Used to set pmouseX/Y to mouseX/Y the first time mouseX/Y are used,
+   * otherwise pmouseX/Y are always zero, causing a nasty jump.
+   * <P>
+   * Just using (frameCount == 0) won't work since mouseXxxxx()
+   * may not be called until a couple frames into things.
+   */
+  public boolean firstMouse;
+
+  /**
+   * Gets set to true/false as the applet gains/loses focus.
+   */
+  public boolean focused = false;
+
+  /** The frame containing this applet (if any) */
+  public Frame frame;
+
+  /**
+   * How many frames have been displayed since the applet started.
+   * <P>
+   * This value is read-only <EM>do not</EM> attempt to set it,
+   * otherwise bad things will happen.
+   * <P>
+   * Inside setup(), frameCount is 0.
+   * For the first iteration of draw(), frameCount will equal 1.
+   */
+  public int frameCount;
+
+  /**
+   * The current value of frames per second.
+   * <P>
+   * The initial value will be 10 fps, and will be updated with each
+   * frame thereafter. The value is not instantaneous (since that
+   * wouldn't be very useful since it would jump around so much),
+   * but is instead averaged (integrated) over several frames.
+   * As such, this value won't be valid until after 5-10 frames.
+   */
+  public float frameRate = 10;
+
+  /** Last time in milliseconds that a frameRate delay occurred */
+  protected long frameRateLastDelayTime = 0;
+
+  protected long frameRateLastMillis = 0;
+
+  /** As of release 0116, frameRate(60) is called as a default */
+  protected float frameRateTarget = 60;
+
+  /** The PGraphics renderer associated with this PApplet */
+  public PGraphics g;
+
+  /** height of this applet's associated PGraphics */
+  public int height;
+
   /**
    * Full name of the Java version (i.e. 1.5.0_11).
    * Prior to 0125, this was only the first three digits.
@@ -164,6 +234,105 @@ public class PApplet extends Applet
    */
   public static final float javaVersion =
     new Float(javaVersionName.substring(0, 3)).floatValue();
+
+  /**
+   * Last key pressed.
+   * <P>
+   * If it's a coded key, i.e. UP/DOWN/CTRL/SHIFT/ALT,
+   * this will be set to CODED (0xffff or 65535).
+   */
+  public char key;
+
+  /**
+   * When "key" is set to CODED, this will contain a Java key code.
+   * <P>
+   * For the arrow keys, keyCode will be one of UP, DOWN, LEFT and RIGHT.
+   * Also available are ALT, CONTROL and SHIFT. A full set of constants
+   * can be obtained from java.awt.event.KeyEvent, from the VK_XXXX variables.
+   */
+  public int keyCode;
+
+  /**
+   * the last KeyEvent object passed into a mouse function.
+   */
+  public KeyEvent keyEvent;
+
+  /**
+   * true if the mouse is currently pressed.
+   */
+  public boolean keyPressed;
+
+  // this text isn't seen unless PApplet is used on its
+  // own and someone takes advantage of leechErr.. not likely
+  static public final String LEECH_WAKEUP = "Error while running applet.";
+  public PrintStream leechErr;
+
+  protected boolean listenersAdded;
+
+  protected String[] loadImageFormats;
+
+  protected boolean looping;
+
+  /**
+   * Modifier flags for the shortcut key used to trigger menus.
+   * (Cmd on Mac OS X, Ctrl on Linux and Windows)
+   */
+  static public final int MENU_SHORTCUT =
+    Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+
+  /**
+   * Minimum dimensions for the window holding an applet.
+   * This varies between platforms, Mac OS X 10.3 can do any height
+   * but requires at least 128 pixels width. Windows XP has another
+   * set of limitations. And for all I know, Linux probably lets you
+   * make windows with negative sizes.
+   */
+  static public final int MIN_WINDOW_WIDTH = 128;
+  static public final int MIN_WINDOW_HEIGHT = 128;
+
+  /**
+   * Last mouse button pressed, one of LEFT, CENTER, or RIGHT.
+   * <P>
+   * If running on Mac OS, a ctrl-click will be interpreted as
+   * the righthand mouse button (unlike Java, which reports it as
+   * the left mouse).
+   */
+  public int mouseButton;
+
+  public MouseEvent mouseEvent;
+
+  public boolean mousePressed;
+
+  /** current x position of the mouse */
+  public int mouseX;
+
+  /** current y position of the mouse */
+  public int mouseY;
+
+  /**
+   * Message of the Exception thrown when size() is called the first time.
+   * <P>
+   * This is used internally so that setup() is forced to run twice
+   * when the renderer is changed. This is the only way for us to handle
+   * invoking the new renderer while also in the midst of rendering.
+   */
+  static public final String NEW_RENDERER = "new renderer";
+
+  /**
+   * true if the applet is online.
+   * <P>
+   * This can be used to test how the applet should behave
+   * since online situations are different (no file writing, etc).
+   */
+  public boolean online = false;
+
+  /**
+   * Pixel buffer from this applet's PGraphics.
+   * <P>
+   * When used with OpenGL or Java2D, this value will
+   * be null until loadPixels() has been called.
+   */
+  public int pixels[];
 
   /**
    * Current platform in use.
@@ -192,38 +361,26 @@ public class PApplet extends Applet
     } else {
       platform = OTHER;
     }
-    System.loadLibrary("processing-core");
   }
 
   /**
-   * Modifier flags for the shortcut key used to trigger menus.
-   * (Cmd on Mac OS X, Ctrl on Linux and Windows)
+   * Previous x/y position of the mouse. This will be a different value
+   * when inside a mouse handler (like the mouseMoved() method) versus
+   * when inside draw(). Inside draw(), pmouseX is updated once each
+   * frame, but inside mousePressed() and friends, it's updated each time
+   * an event comes through. Be sure to use only one or the other type of
+   * means for tracking pmouseX and pmouseY within your sketch, otherwise
+   * you're gonna run into trouble.
    */
-  static public final int MENU_SHORTCUT =
-    Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
-
-  /** The PGraphics renderer associated with this PApplet */
-  public PGraphics g;
-
-  //protected Object glock = new Object(); // for sync
-
-  /** The frame containing this applet (if any) */
-  public Frame frame;
+  public int pmouseX, pmouseY;
 
   /**
-   * Message of the Exception thrown when size() is called the first time.
-   * <P>
-   * This is used internally so that setup() is forced to run twice
-   * when the renderer is changed. This is the only way for us to handle
-   * invoking the new renderer while also in the midst of rendering.
+   * A leech graphics object that is echoing all events.
    */
-  static public final String NEW_RENDERER = "new renderer";
+  public PGraphics recorder;
 
-  /** Renderer to use next time the component is updated */
-  //String nextRenderer = JAVA2D;
-  /** Path for the renderer next time the component is updated */
-  //String nextRendererPath;
-
+  /** flag set to true when a redraw is asked for by the user */
+  protected boolean redraw;
 
   /**
    * The screen size when the applet was started.
@@ -243,152 +400,19 @@ public class PApplet extends Applet
   public Dimension screen =
     Toolkit.getDefaultToolkit().getScreenSize();
 
-  /**
-   * A leech graphics object that is echoing all events.
-   */
-  public PGraphics recorder;
-
-  /**
-   * Command line options passed in from main().
-   * <P>
-   * This does not include the arguments passed in to PApplet itself.
-   */
-  public String args[];
-
   /** Path to sketch folder */
   public String sketchPath; //folder;
-
-  /** When debugging headaches */
-  static final boolean THREAD_DEBUG = false;
-
-  private Object blocker = new Object();
-
-  /** Default width and height for applet when not specified */
-  static public final int DEFAULT_WIDTH = 100;
-  static public final int DEFAULT_HEIGHT = 100;
-
-  /**
-   * Minimum dimensions for the window holding an applet.
-   * This varies between platforms, Mac OS X 10.3 can do any height
-   * but requires at least 128 pixels width. Windows XP has another
-   * set of limitations. And for all I know, Linux probably lets you
-   * make windows with negative sizes.
-   */
-  static public final int MIN_WINDOW_WIDTH = 128;
-  static public final int MIN_WINDOW_HEIGHT = 128;
-
-  /**
-   * true if no size() command has been executed. This is used to wait until
-   * a size has been set before placing in the window and showing it.
-   */
-  public boolean defaultSize;
-
-  /**
-   * Pixel buffer from this applet's PGraphics.
-   * <P>
-   * When used with OpenGL or Java2D, this value will
-   * be null until loadPixels() has been called.
-   */
-  public int pixels[];
 
   /** width of this applet's associated PGraphics */
   public int width;
 
-  /** height of this applet's associated PGraphics */
-  public int height;
 
-  /** current x position of the mouse */
-  public int mouseX;
+  /* 'package' variables below */
 
-  /** current y position of the mouse */
-  public int mouseY;
+  /** When debugging headaches */
+  static final boolean THREAD_DEBUG = true;
 
-  /**
-   * Previous x/y position of the mouse. This will be a different value
-   * when inside a mouse handler (like the mouseMoved() method) versus
-   * when inside draw(). Inside draw(), pmouseX is updated once each
-   * frame, but inside mousePressed() and friends, it's updated each time
-   * an event comes through. Be sure to use only one or the other type of
-   * means for tracking pmouseX and pmouseY within your sketch, otherwise
-   * you're gonna run into trouble.
-   */
-  public int pmouseX, pmouseY;
-
-  /**
-   * previous mouseX/Y for the draw loop, separated out because this is
-   * separate from the pmouseX/Y when inside the mouse event handlers.
-   */
-  protected int dmouseX, dmouseY;
-
-  /**
-   * pmouseX/Y for the event handlers (mousePressed(), mouseDragged() etc)
-   * these are different because mouse events are queued to the end of
-   * draw, so the previous position has to be updated on each event,
-   * as opposed to the pmouseX/Y that's used inside draw, which is expected
-   * to be updated once per trip through draw().
-   */
-  protected int emouseX, emouseY;
-
-  /**
-   * Used to set pmouseX/Y to mouseX/Y the first time mouseX/Y are used,
-   * otherwise pmouseX/Y are always zero, causing a nasty jump.
-   * <P>
-   * Just using (frameCount == 0) won't work since mouseXxxxx()
-   * may not be called until a couple frames into things.
-   */
-  public boolean firstMouse;
-
-  /**
-   * Last mouse button pressed, one of LEFT, CENTER, or RIGHT.
-   * <P>
-   * If running on Mac OS, a ctrl-click will be interpreted as
-   * the righthand mouse button (unlike Java, which reports it as
-   * the left mouse).
-   */
-  public int mouseButton;
-
-  public boolean mousePressed;
-  public MouseEvent mouseEvent;
-
-  /**
-   * Last key pressed.
-   * <P>
-   * If it's a coded key, i.e. UP/DOWN/CTRL/SHIFT/ALT,
-   * this will be set to CODED (0xffff or 65535).
-   */
-  public char key;
-
-  /**
-   * When "key" is set to CODED, this will contain a Java key code.
-   * <P>
-   * For the arrow keys, keyCode will be one of UP, DOWN, LEFT and RIGHT.
-   * Also available are ALT, CONTROL and SHIFT. A full set of constants
-   * can be obtained from java.awt.event.KeyEvent, from the VK_XXXX variables.
-   */
-  public int keyCode;
-
-  /**
-   * true if the mouse is currently pressed.
-   */
-  public boolean keyPressed;
-
-  /**
-   * the last KeyEvent object passed into a mouse function.
-   */
-  public KeyEvent keyEvent;
-
-  /**
-   * Gets set to true/false as the applet gains/loses focus.
-   */
-  public boolean focused = false;
-
-  /**
-   * true if the applet is online.
-   * <P>
-   * This can be used to test how the applet should behave
-   * since online situations are different (no file writing, etc).
-   */
-  public boolean online = false;
+  private Object blocker = new Object();
 
   /**
    * Time in milliseconds when the applet was started.
@@ -397,134 +421,13 @@ public class PApplet extends Applet
    */
   long millisOffset;
 
-  /**
-   * The current value of frames per second.
-   * <P>
-   * The initial value will be 10 fps, and will be updated with each
-   * frame thereafter. The value is not instantaneous (since that
-   * wouldn't be very useful since it would jump around so much),
-   * but is instead averaged (integrated) over several frames.
-   * As such, this value won't be valid until after 5-10 frames.
-   */
-  public float frameRate = 10;
-  protected long frameRateLastMillis = 0;
-
-  /** Last time in milliseconds that a frameRate delay occurred */
-  protected long frameRateLastDelayTime = 0;
-  /** As of release 0116, frameRate(60) is called as a default */
-  protected float frameRateTarget = 60;
-
-  protected boolean looping;
-
-  /** flag set to true when a redraw is asked for by the user */
-  protected boolean redraw;
-
-  /**
-   * How many frames have been displayed since the applet started.
-   * <P>
-   * This value is read-only <EM>do not</EM> attempt to set it,
-   * otherwise bad things will happen.
-   * <P>
-   * Inside setup(), frameCount is 0.
-   * For the first iteration of draw(), frameCount will equal 1.
-   */
-  public int frameCount;
-
-  /**
-   * true if this applet has had it.
-in   */
-  public boolean finished;
-
-  /**
-   * true if exit() has been called so that things shut down
-   * once the main thread kicks off.
-   */
-  protected boolean exit;
-
   Thread thread;
-
-  /**
-   * Set to the an exception that occurs inside run() and is not
-   * caught. <P> Used by PdeRuntime to determine what happened and
-   * report back to the user.
-   */
-  public Exception exception;
-  //public Throwable exception;
-
-  protected RegisteredMethods sizeMethods;
-  protected RegisteredMethods preMethods, drawMethods, postMethods;
-  protected RegisteredMethods mouseEventMethods, keyEventMethods;
-  protected RegisteredMethods disposeMethods;
-
-  // this text isn't seen unless PApplet is used on its
-  // own and someone takes advantage of leechErr.. not likely
-  static public final String LEECH_WAKEUP = "Error while running applet.";
-  public PrintStream leechErr;
-
-  // messages to send if attached as an external vm
-
-  /**
-   * Position of the upper-lefthand corner of the editor window
-   * that launched this applet.
-   */
-  static public final String ARGS_EDITOR_LOCATION = "--editor-location";
-
-  /**
-   * Location for where to position the applet window on screen.
-   * <P>
-   * This is used by the editor to when saving the previous applet
-   * location, or could be used by other classes to launch at a
-   * specific position on-screen.
-   */
-  static public final String ARGS_EXTERNAL = "--external";
-
-  static public final String ARGS_LOCATION = "--location";
-
-  static public final String ARGS_DISPLAY = "--display";
-
-  static public final String ARGS_BGCOLOR = "--bgcolor";
-
-  static public final String ARGS_PRESENT = "--present";
-
-  static public final String ARGS_STOP_COLOR = "--stop-color";
-
-  static public final String ARGS_HIDE_STOP = "--hide-stop";
-
-  /**
-   * Allows the user or PdeEditor to set a specific sketch folder path.
-   * <P>
-   * Used by PdeEditor to pass in the location where saveFrame()
-   * and all that stuff should write things.
-   */
-  static public final String ARGS_SKETCH_FOLDER = "--sketch-path";
-
-  /**
-   * Message from parent editor (when run as external) to quit.
-   */
-  static public final char EXTERNAL_STOP = 's';
-
-  /**
-   * When run externally to a PdeEditor,
-   * this is sent by the applet when it quits.
-   */
-  static public final String EXTERNAL_QUIT = "__QUIT__";
-
-  /**
-   * When run externally to a PDE Editor, this is sent by the applet
-   * whenever the window is moved.
-   * <P>
-   * This is used so that the editor can re-open the sketch window
-   * in the same position as the user last left it.
-   */
-  static public final String EXTERNAL_MOVE = "__MOVE__";
 
   /** true if this sketch is being run by the PDE */
   boolean external = false;
 
-
   static final String ERROR_MAX = "Cannot use max() on an empty array.";
   static final String ERROR_MIN = "Cannot use min() on an empty array.";
-
 
   // during rev 0100 dev cycle, working on new threading model,
   // but need to disable and go conservative with changes in order
@@ -532,21 +435,12 @@ in   */
   // for 0116, the CRUSTY_THREADS are being disabled to fix lots of bugs.
   static final boolean CRUSTY_THREADS = false; //true;
 
-  public void init() {
-    // first get placed size in case it's non-zero
-    Dimension initialSize = getSize();
+  public void setSize(int width, int height) {
+    this.width = width;
+    this.height = height;
+  }
 
-    // send tab keys through to the PApplet
-    setFocusTraversalKeysEnabled(false);
-//    try {
-//      if (javaVersion >= 1.4f) {
-//        //setFocusTraversalKeysEnabled(false);  // 1.4-only function
-//        Method defocus =
-//          Component.class.getMethod("setFocusTraversalKeysEnabled",
-//                                    new Class[] { Boolean.TYPE });
-//        defocus.invoke(this, new Object[] { Boolean.FALSE });
-//      }
-//    } catch (Exception e) { }  // oh well
+  public void init() {
 
     millisOffset = System.currentTimeMillis();
 
@@ -567,49 +461,13 @@ in   */
     disposeMethods = new RegisteredMethods();
 
     try {
-      getAppletContext();
-      online = true;
-    } catch (NullPointerException e) {
-      online = false;
-    }
-
-//    if (javaVersion < 1.3f) {
-//      addMouseListener(new MouseAdapter() {
-//          public void mousePressed(MouseEvent e) {
-//            link("http://java.com/");
-//          }
-//        });
-//      // no init to do, so don't cause no trouble, boy
-//      return;
-//      // call this after making the methods to minimize the
-//      // number of places needing the javaVersion crap
-//      // (also needs to check online first and create empty
-//      // stop method register list)
-//    }
-
-    try {
       if (sketchPath == null) {
         sketchPath = System.getProperty("user.dir");
       }
     } catch (Exception e) { }  // may be a security problem
 
-    if ((initialSize.width != 0) && (initialSize.height != 0)) {
-      // When this PApplet is embedded inside a Java application with other
-      // Component objects, its size() may already be set externally (perhaps
-      // by a LayoutManager). In this case, honor that size as the default.
-      // Size of the component is set, just create a renderer.
-      setRendererSize(initialSize.width, initialSize.height);
-      //g = PApplet.createGraphics(initialSize.width, initialSize.height,
-      //                         JAVA2D, null, this);
-    } else {
-      // Set the default size, until the user specifies otherwise
-      this.defaultSize = true;
-      //g = PApplet.createGraphics(DEFAULT_WIDTH, DEFAULT_HEIGHT,
-      //                           JAVA2D, null, this);
-      setRendererSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
-      // Fire component resize event
-      setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
-    }
+    native_createGraphics(480, 640);
+    setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
     // this is automatically called in applets
     // though it's here for applications anyway
@@ -626,14 +484,11 @@ in   */
    * PAppletGL needs to have a usable screen before getting things rolling.
    */
   public void start() {
-    //if (javaVersion < 1.3f) return;
-
     if (thread != null) return;
     thread = new Thread(this);
     thread.start();
   }
 
-  native void native_unload();
 
   /**
    * Called by the browser or applet viewer to inform
@@ -644,19 +499,9 @@ in   */
    * or when moving between web pages), and it's not always called.
    */
    public void stop() {
-     // maybe start should also be used as the method for kicking
-     // the thread on, instead of doing it inside paint()
-
-     // bringing this back for 0111, hoping it'll help opengl shutdown
-     finished = true;  // why did i comment this out?
-
-     //System.out.println("stopping applet " + thread);
-
-    // don't run stop and disposers twice
+     finished = true;
     if (thread == null) return;
     thread = null;
-
-    // call to shut down renderer, in case it needs it (pdf does)
     if (g != null) g.dispose();
 
     // maybe this should be done earlier? might help ensure it gets called
@@ -664,6 +509,7 @@ in   */
     disposeMethods.handle();
     native_unload();
   }
+
 
   /**
    * Called by the browser or applet viewer to inform this applet
@@ -899,28 +745,9 @@ in   */
    * Component has been resized (by an event) and the renderer needs an update.
    */
   protected void setRendererSize(int w, int h) {
-    boolean changed = false;
-    if (g == null) {
-      g = PApplet.createGraphics(w, h, JAVA2D, null, this);
-
-    } else  if (w != g.width || h != g.height) {
-      g.resize(w, h);
-      changed = true;
-    }
-    width = w;
-    height = h;
-    if (changed) redraw();
-    //redraw = true;
-    /*
-    if (g == null) {
-      g = PApplet.createGraphics(w, h, nextRenderer, nextRendererPath, this);
-    } else {
-      g.resize(w, h);
-    }
-    */
+    return;
   }
 
-  native void native_createGraphics(int width, int height);
 
   /**
    * Starts up and creates a two-dimensional drawing surface,
@@ -938,28 +765,12 @@ in   */
    * use the previous renderer and simply resize it.
    */
   public void size(int iwidth, int iheight) {
-    native_createGraphics(iwidth, iheight);
-    //    size(iwidth, iheight, JAVA2D, null);
-    //setSize(iwidth, iheight);
-    //defaultSize = false;
-
-//    setRendererSize(iwidth, iheight);
-//    defaultSize = false;
-    /*
-    if (g != null) {
-      // just resize the current renderer
-      size(iwidth, iheight, g.getClass().getName());
-
-    } else {
-      // create a JAVA2D renderer (the current default)
-      size(iwidth, iheight, JAVA2D);
-    }
-    */
+    setSize(iwidth, iheight);
   }
 
 
   public void size(int iwidth, int iheight, String irenderer) {
-    size(iwidth, iheight, irenderer, null);
+    setSize(iwidth, iheight);
   }
 
 
@@ -976,100 +787,8 @@ in   */
    */
   public void size(int iwidth, int iheight,
                    String irenderer, String ipath) {
-    if (g == null) {
-      // no renderer exists, just create a freshy
-      g = PApplet.createGraphics(iwidth, iheight, irenderer, ipath, this);
-      width = iwidth;
-      height = iheight;
-      //updateSize(iwidth, iheight);
-      //setSize(iwidth, iheight);
-      //nextRenderer = irenderer;
-      //nextRendererPath = ipath;
-      // fire resize event to make sure the applet is the proper size
-      setSize(iwidth, iheight);
-
-    } else {
-      // ensure that this is an absolute path
-      if (ipath != null) ipath = savePath(ipath);
-
-      String currentRenderer = g.getClass().getName();
-      if (currentRenderer.equals(irenderer)) {
-//        println("calling setRendererSize from size() " + iwidth + " " + iheight);
-        // Avoid infinite loop of throwing exception to reset renderer
-        if (width == iwidth && height == iheight) return;
-
-        setRendererSize(iwidth, iheight);
-        setSize(iwidth, iheight);
-//        if ((iwidth != g.width) || (iheight != g.height)) {
-//          // resizing, no need to create new graphics object
-//          g.resize(iwidth, iheight);
-//          //updateSize(iwidth, iheight);
-//          //redraw(); // changed for rev 0100
-//          // removed redraw for 0128, might be problem with double draw()
-//        } // else this is just the 2nd trip through setup (w/o the exception)
-
-      } else {  // renderer is being changed
-        if (frameCount > 0) {
-          throw new RuntimeException("size() cannot be called to change " +
-                                     "the renderer outside of setup()");
-        }
-        // otherwise ok to fall through and create renderer below
-        // the renderer is changing, so need to create a new object
-        g = PApplet.createGraphics(iwidth, iheight, irenderer, ipath, this);
-        width = iwidth;
-        height = iheight;
-        //updateSize(iwidth, iheight);
-        //nextRenderer = irenderer;
-        //nextRendererPath = ipath;
-
-        // fire resize event to make sure the applet is the proper size
-        setSize(iwidth, iheight);
-        // this is the function that will run if the user does their own
-        // size() command inside setup, so set defaultSize to false.
-        defaultSize = false;
-      }
-      // throw an exception so that setup() is called again
-      // but with a properly sized render
-      // this is for opengl, which needs a valid, properly sized
-      // display before calling anything inside setup().
-      throw new RuntimeException(NEW_RENDERER);
-    }
+    setSize(iwidth, iheight);
   }
-
-
-  /**
-   * Sets this.width and this.height, unsets defaultSize, and calls
-   * the size() methods inside any libraries.
-   */
-  /*
-  protected void updateSize(int iwidth, int iheight) {
-    this.width = iwidth;
-    this.height = iheight;
-    System.out.println("set default false updateSize " + iwidth + " " + iheight);
-    new Exception().printStackTrace();
-    defaultSize = false;
-
-    // make the applet itself larger.. it's a subclass of Component,
-    // so this is important for when it's embedded inside another app.
-    setSize(width, height);
-
-    // probably needs to mess with the parent frame here?
-    // TODO wait for a "legitimate size" flag to be set
-    // (meaning that setup has finished properly)
-    // at which time the parent frame will do its thing.
-
-    // if the default renderer is just being resized,
-    // restore it to its default values
-    //g.defaults();
-    // no, otherwise fonts that were set in setup() will go away
-
-    // this has to be called after the exception is thrown,
-    // otherwise the supporting libs won't have a valid context to draw to
-    Object methodArgs[] =
-      new Object[] { new Integer(width), new Integer(height) };
-    sizeMethods.handle(methodArgs);
-  }
-  */
 
 
   /**
@@ -1287,39 +1006,10 @@ in   */
 
 
   synchronized public void paint(Graphics screen) {
-//    if (javaVersion < 1.3f) {
-//      screen.setColor(new Color(64, 64, 64));
-//      Dimension size = getSize();
-//      screen.fillRect(0, 0, size.width, size.height);
-//      screen.setColor(Color.white);
-//      screen.setFont(new Font("Dialog", Font.PLAIN, 9));
-//      screen.drawString("You need to install", 3, 15);
-//      screen.drawString("Java 1.3 or later", 3, 28);
-//      screen.drawString("to view this content.", 3, 41);
-//      screen.drawString("Click here to visit", 3, 59);
-//      screen.drawString("java.com and install.", 3, 72);
-//      return;
-//    }
 
     //System.out.println("PApplet.paint()");
     if (THREAD_DEBUG) println(Thread.currentThread().getName() +
                               "     5a enter paint");
-
-    // ignore the very first call to paint, since it's coming
-    // from the o.s., and the applet will soon update itself anyway.
-    //if (firstFrame) return;
-    if (frameCount == 0) {
-      // paint() may be called more than once before things
-      // are finally painted to the screen and the thread gets going
-      //System.out.println("not painting");
-      /*
-      if (thread == null) {
-        initGraphics();
-        start();
-      }
-      */
-      return;
-    }
 
     // without ignoring the first call, the first several frames
     // are confused because paint() gets called in the midst of
@@ -1344,11 +1034,8 @@ in   */
       // moving this into PGraphics caused weird sluggishness on win2k
       //g.mis.newPixels(pixels, g.cm, 0, width); // must call this
 
-      // make sure the screen is visible and usable
-      // (also prevents over-drawing when using PGraphicsGL)
-      if ((g != null) && (g.image != null)) {
-        screen.drawImage(g.image, 0, 0, null);
-      }
+      native_update_rect(this.width, this.height);
+
       //if (THREAD_DEBUG) println("notifying all");
       //notifyAll();
       //thread.notify();
@@ -1388,8 +1075,8 @@ in   */
 
         if (frameCount == 0) {
           try {
-            //System.out.println("attempting setup");
-            //System.out.println("into try");
+            System.out.println("attempting setup");
+            System.out.println("into try");
             setup();
             //g.defaults();
 
@@ -1558,14 +1245,10 @@ in   */
 
   public void run() {  // not good to make this synchronized, locks things up
     try {
+
+      setup();
+
       while ((Thread.currentThread() == thread) && !finished) {
-        // render a single frame
-        if (g != null) {
-          //println("requesting display");
-          g.requestDisplay(this);
-        } else {
-          println("no renderer");
-        }
 
         if (frameCount == 1) {
           // Call the request focus event once the image is sure to be on
@@ -1592,6 +1275,8 @@ in   */
 
           // If !looping, sleeps for a nice long time, or until an
           // interrupt or notify from a call to loop/noLoop/redraw
+
+          paint((Graphics) null);
 
           int nap = (looping || finished) ? 1 : 10000;
 
@@ -1751,8 +1436,6 @@ in   */
 
   //////////////////////////////////////////////////////////////
 
-
-  protected boolean listenersAdded;
 
   public void addListeners() {
     if (!listenersAdded) {
@@ -3479,8 +3162,6 @@ in   */
 
   // . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 
-
-  protected String[] loadImageFormats;
 
 
   /**
@@ -7401,7 +7082,6 @@ in   */
     g.endShape(mode);
   }
 
-  native void native_point(int x, int y);
 
   public void point(float x, float y) {
     native_point((int) x, (int) y);
@@ -7409,6 +7089,7 @@ in   */
 
 
   public void point(float x, float y, float z) {
+    System.out.println("not this");
     if (recorder != null) recorder.point(x, y, z);
     g.point(x, y, z);
   }
@@ -7992,7 +7673,6 @@ in   */
     g.noStroke();
   }
 
-  native void native_stroke(int gray);
 
   public void stroke(int rgb) {
     native_stroke(rgb);
@@ -8003,6 +7683,7 @@ in   */
     if (recorder != null) recorder.stroke(rgb, alpha);
     g.stroke(rgb, alpha);
   }
+
 
   public void stroke(float gray) {
     native_stroke((int) gray);
@@ -8343,6 +8024,6 @@ in   */
 
 
   public boolean displayable() {
-    return g.displayable();
+    return true;
   }
 }

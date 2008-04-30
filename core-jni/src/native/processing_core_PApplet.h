@@ -35,18 +35,18 @@ extern "C" {
 #define processing_core_PApplet_serialVersionUID -2728009084054400034LL
 #undef processing_core_PApplet_serialVersionUID
 #define processing_core_PApplet_serialVersionUID -5836846270535785031LL
-#undef processing_core_PApplet_THREAD_DEBUG
-#define processing_core_PApplet_THREAD_DEBUG 0L
-#undef processing_core_PApplet_DEFAULT_WIDTH
-#define processing_core_PApplet_DEFAULT_WIDTH 100L
 #undef processing_core_PApplet_DEFAULT_HEIGHT
 #define processing_core_PApplet_DEFAULT_HEIGHT 100L
+#undef processing_core_PApplet_DEFAULT_WIDTH
+#define processing_core_PApplet_DEFAULT_WIDTH 100L
+#undef processing_core_PApplet_EXTERNAL_STOP
+#define processing_core_PApplet_EXTERNAL_STOP 115L
 #undef processing_core_PApplet_MIN_WINDOW_WIDTH
 #define processing_core_PApplet_MIN_WINDOW_WIDTH 128L
 #undef processing_core_PApplet_MIN_WINDOW_HEIGHT
 #define processing_core_PApplet_MIN_WINDOW_HEIGHT 128L
-#undef processing_core_PApplet_EXTERNAL_STOP
-#define processing_core_PApplet_EXTERNAL_STOP 115L
+#undef processing_core_PApplet_THREAD_DEBUG
+#define processing_core_PApplet_THREAD_DEBUG 0L
 #undef processing_core_PApplet_CRUSTY_THREADS
 #define processing_core_PApplet_CRUSTY_THREADS 0L
 #undef processing_core_PApplet_PERLIN_YWRAPB
@@ -61,19 +61,19 @@ extern "C" {
 #define processing_core_PApplet_PERLIN_SIZE 4095L
 /*
  * Class:     processing_core_PApplet
- * Method:    native_unload
- * Signature: ()V
- */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1unload
-  (JNIEnv *, jobject);
-
-/*
- * Class:     processing_core_PApplet
  * Method:    native_createGraphics
  * Signature: (II)V
  */
 JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1createGraphics
   (JNIEnv *, jobject, jint, jint);
+
+/*
+ * Class:     processing_core_PApplet
+ * Method:    native_unload
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1unload
+  (JNIEnv *, jobject);
 
 /*
  * Class:     processing_core_PApplet
@@ -90,6 +90,14 @@ JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
  */
 JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1stroke
   (JNIEnv *, jobject, jint);
+
+/*
+ * Class:     processing_core_PApplet
+ * Method:    native_update_rect
+ * Signature: (II)V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1update_1rect
+  (JNIEnv *, jobject, jint, jint);
 
 #ifdef __cplusplus
 }
