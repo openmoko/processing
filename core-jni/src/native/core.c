@@ -82,7 +82,6 @@ void sdl_init(int width, int height)
 JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1unload
     (JNIEnv * jnienv, jobject jobj) {
     fprintf(stderr, "%s\n", __func__);
-    sleep(1);
     SDL_Quit();
 }
 

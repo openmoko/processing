@@ -1675,7 +1675,7 @@ in   */
     //}
 
     //System.out.println("exiting run " + finished);
-    stop();  // call to shutdown libs?
+    //stop();  // call to shutdown libs?
 
     if (exit) {  // user called exit() function
       if ((leechErr == null) && !online) {
