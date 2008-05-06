@@ -1,5 +1,6 @@
-#include "SDL/SDL.h"
-#include "processing_core_PApplet.h"
+#include <SDL.h>
+#include <SDL_draw.h>
+#include "processing_core_PGraphicsSDL2D.h"
 
 static SDL_Surface *screen = NULL;
 Uint32 stroke = 0;
@@ -45,7 +46,9 @@ static inline void _putpixel_32(int x, int y, Uint32 pixel)
 
 void sdl_init(int width, int height)
 {
-    /* Initialize defaults, Video and Audio */
+    if (SDL_WasInit(SDL_INIT_VIDEO) != 0)
+	return;
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
 	err_exit();
 
@@ -74,37 +77,8 @@ void sdl_init(int width, int height)
     stroke = SDL_MapRGB(screen->format, 0xff, 0xff, 0x00);
 }
 
-/*
- * Class:     processing_core_PApplet
- * Method:    native_unload
- * Signature: ()V
- */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1unload
-    (JNIEnv * jnienv, jobject jobj) {
-    fprintf(stderr, "%s\n", __func__);
-    SDL_Quit();
-}
-
-/*
- * Class:     processing_core_PApplet
- * Method:    native_createGraphics
- * Signature: (II)V
- */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1createGraphics
-    (JNIEnv * jnienv, jobject jobj, jint width, jint height) {
-    fprintf(stderr, "%s width = %d, height = %d\n", __func__, (int) width,
-	    (int) height);
-    if (SDL_WasInit(SDL_INIT_VIDEO) == 0)
-	sdl_init((int) width, (int) height);
-}
-
-/*
- * Class:     processing_core_PApplet
- * Method:    native_point
- * Signature: (II)V
- */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
-    (JNIEnv * jnienv, jobject jobj, jint x, jint y) {
+void sdl_point(int x, int y)
+{
     /* Lock the screen for direct access to the pixels */
     if (SDL_MUSTLOCK(screen)) {
 	if (SDL_LockSurface(screen) < 0) {
@@ -120,23 +94,72 @@ JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1point
     }
 }
 
-/*
- * Class:     processing_core_PApplet
- * Method:    native_stroke
- * Signature: (F)V
- */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1stroke
-    (JNIEnv * jnienv, jobject jobj, jint gray) {
-    stroke = SDL_MapRGB(screen->format, gray, gray, gray);
+void sdl_draw_line(int x1, int y1, int x2, int y2)
+{
+    if (x1 != x2 && y1 != y2) {
+	Draw_Line(screen, (Sint16) x1, (Sint16) y1, (Sint16) x2, (Sint16) y2, stroke);
+	return;
+    }
+    if (x1 == x2) {
+	Draw_VLine(screen, (Sint16) x1, (Sint16) y1, (Sint16) y2, stroke);
+	return;
+    }
+    if (y1 == y2) {
+	Draw_HLine(screen, (Sint16) x1, (Sint16) y1, (Sint16) x2, stroke);
+	return;
+    }
 }
 
 /*
- * Class:     processing_core_PApplet
- * Method:    native_update_rect
+ * Class:     processing_core_PGraphicsSDL2D
+ * Method:    native_init
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PGraphicsSDL2D_native_1init
+(JNIEnv * jnienv, jobject jobj) {
+    fprintf(stderr, "%s\n", __func__);
+    sdl_init(480, 640);
+    stroke = SDL_MapRGB(screen->format, 255, 255, 255);
+}
+
+/*
+ * Class:     processing_core_PGraphicsSDL2D
+ * Method:    native_unload
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PGraphicsSDL2D_native_1unload
+(JNIEnv * jnienv, jobject jobj) {
+    fprintf(stderr, "%s\n", __func__);
+    SDL_Quit();
+}
+
+/*
+ * Class:     processing_core_PGraphicsSDL2D
+ * Method:    native_line
+ * Signature: (IIII)V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PGraphicsSDL2D_native_1line
+(JNIEnv * jnienv, jobject jobj, jint x1, jint y1, jint x2, jint y2) {
+    sdl_draw_line((int) x1, (int) y1, (int) x2, (int) y2);
+}
+
+/*
+ * Class:     processing_core_PGraphicsSDL2D
+ * Method:    native_point
  * Signature: (II)V
  */
-JNIEXPORT void JNICALL Java_processing_core_PApplet_native_1update_1rect
-    (JNIEnv * jnienv, jobject jobj, jint width, jint height) {
+JNIEXPORT void JNICALL Java_processing_core_PGraphicsSDL2D_native_1point
+(JNIEnv * jnienv, jobject jobj, jint x, jint y) {
+    sdl_point((int) x, (int) y);
+}
+
+/*
+ * Class:     processing_core_PGraphicsSDL2D
+ * Method:    native_update_rect
+ * Signature: (IIII)V
+ */
+JNIEXPORT void JNICALL Java_processing_core_PGraphicsSDL2D_native_1update_1rect
+(JNIEnv * jnienv, jobject jobj, jint x1, jint y1, jint x2, jint y2) {
     fprintf(stderr, "%s\n", __func__);
-    SDL_UpdateRect(screen, 0, 0, width, height);
+    SDL_UpdateRect(screen, (int) x1, (int) y1, (int) x2, (int) y2);
 }

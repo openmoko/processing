@@ -45,6 +45,7 @@ public interface PConstants {
   static final String OPENGL = "processing.opengl.PGraphicsOpenGL";
   static final String PDF    = "processing.pdf.PGraphicsPDF";
   static final String DXF    = "processing.dxf.RawDXF";
+  static final String SDL    = "processing.core.PGraphicsSDL2D";
   //static final String SVG    = "processing.svg.PGraphicsSVG";
 
 

@@ -15,8 +15,6 @@ AC_CHECK_HEADER([jni.h], [], [AC_MSG_ERROR([required header not found])])
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE
 
-dnl Checks for library functions.
-
 dnl Check for SDL
 SDL_VERSION=1.2.0
 AM_PATH_SDL($SDL_VERSION,
@@ -25,6 +23,9 @@ AM_PATH_SDL($SDL_VERSION,
 )
 CFLAGS="$CFLAGS $SDL_CFLAGS"
 LIBS="$LIBS $SDL_LIBS"
+
+dnl Checks for library functions.
+AC_CHECK_LIB([SDL_draw], Draw_Pixel, [], [AC_MSG_ERROR([required library not found])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
