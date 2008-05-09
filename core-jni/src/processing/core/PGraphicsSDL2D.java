@@ -1,5 +1,7 @@
 /* -*- mode: java; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 
+/* TODO: add the color support */
+
 package processing.core;
 
 public class PGraphicsSDL2D extends PGraphics {
@@ -52,14 +54,24 @@ public class PGraphicsSDL2D extends PGraphics {
   }
 
   public void endShape(int mode) {
+    if (mode == CLOSE && shape == POLYGON) {
+      /* connect the last point to the starting point */
+      line(vertices[vertexCount - 1][MX], vertices[vertexCount - 1][MY],
+           vertices[0][MX], vertices[0][MY]);
+    }
   }
 
   public void line(float x1, float y1, float x2, float y2) {
-    native_line((int) x1, (int) y1, (int) x2, (int) y2);
+    if (!transformed) {
+      native_line((int) x1, (int) y1, (int) x2, (int) y2);
+      return;
+    }
+    native_line((int) screenX(x1, y1), (int) screenY(x1, y1),
+                (int) screenX(x2, y2), (int) screenY(x2, y2));
   }
 
   public void point(float x, float y) {
-    if (transformed != true) {
+    if (!transformed) {
       native_point((int) x, (int) y);
       return;
     }
@@ -87,14 +99,85 @@ public class PGraphicsSDL2D extends PGraphics {
   }
 
   public void vertex(float x, float y) {
+
+    vertices[vertexCount][MX] = x;
+    vertices[vertexCount][MY] = y;
+    vertexCount++;
+
+    switch (shape) {
+    case POINTS:
+      point(x, y);
+      break;
+    case LINES:
+      if (vertexCount % 2 == 0) {
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+      }
+      break;
+    case TRIANGLES:
+      if (vertexCount % 3 == 0) {
+        line(vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY],
+             vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY]);
+        line(vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY], x, y);
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+      }
+      break;
+    case TRIANGLE_STRIP:
+      if (vertexCount >= 3) {
+        line(vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY], x, y);
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+      }
+      if (vertexCount == 3) {
+        line(vertices[0][MX], vertices[0][MY],
+             vertices[1][MX], vertices[1][MY]);
+      }
+      break;
+    case TRIANGLE_FAN:
+      if (vertexCount >= 3) {
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+        line(vertices[0][MX], vertices[0][MY], x, y);
+      }
+      if (vertexCount == 3) {
+        line(vertices[0][MX], vertices[0][MY], vertices[1][MX], vertices[1][MY]);
+      }
+      break;
+    case QUADS:
+      if (vertexCount % 4 == 0) {
+        line(vertices[vertexCount - 4][MX], vertices[vertexCount - 4][MY],
+             vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY]);
+        line(vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY],
+             vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY]);
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+        line(vertices[vertexCount - 4][MX], vertices[vertexCount - 4][MY], x, y);
+      }
+      break;
+    case QUAD_STRIP:
+      if (vertexCount >= 4 && vertexCount % 2 == 0) {
+        line(vertices[vertexCount - 4][MX], vertices[vertexCount - 4][MY],
+             vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY]);
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+        line(vertices[vertexCount - 3][MX], vertices[vertexCount - 3][MY], x, y);
+      }
+      if (vertexCount == 4) {
+        line(vertices[0][MX], vertices[0][MY], vertices[1][MX], vertices[1][MY]);
+      }
+      break;
+    case POLYGON:
+      if (vertexCount > 1) {
+        line(vertices[vertexCount - 2][MX], vertices[vertexCount - 2][MY], x, y);
+      }
+      break;
+    }
   }
 
   public void vertex(float x, float y, float z) {
+    throw new UnsupportedOperationException();
   }
 
   public void vertex(float x, float y, float u, float v) {
+    throw new UnsupportedOperationException();
   }
 
   public void vertex(float x, float y, float z, float u, float v) {
+    throw new UnsupportedOperationException();
   }
 }
