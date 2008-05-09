@@ -1,6 +1,7 @@
 lib_LTLIBRARIES = libprocessing-core.la
 
-libprocessing_core_la_SOURCES = \
-core.c
+libprocessing_core_la_SOURCES = x.c
 
-libprocessing_core_la_LIBADD = -lSDL_draw
+if USE_SDL
+libprocessing_core_la_SOURCES += sdl.c
+endif
