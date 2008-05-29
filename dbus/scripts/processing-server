@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# usage: if failed, set JAVA_LIBRARY_PATH and JAVA_JAR_HOME
+#
+# JAVA_LIBRARY_PATH: the location of java native libraries
+# (libunix-java)
+#
+# JAVA_JAR_HOME: the location of jar files. (dbus.jar unix.jar,
+# hexdump.jar, debug-disable.jar)
+#
+# core.jar and processing-dbus.jar must exist in the current
+# directory.
+#
+# example:
+# JAVA_LIBRARY_PATH=$HOME/usr/lib/jni \
+# JAVA_JAR_HOME=$HOME/usr/share/java \
+# processing-server
+
+if test -z ${DBUS_SESSION_BUS_ADDRESS}
+then
+    echo Please set DBUS_SESSION_BUS_ADDRESS
+    exit -1
+fi
+
+JAVA_JAR_HOME=${JAVA_JAR_HOME:-/usr/share/java}
+
+for f in unix.jar hexdump.jar dbus.jar debug-disable.jar
+do
+    CLASSPATH=${CLASSPATH}:${JAVA_JAR_HOME}/${f}
+done
+
+exec java \
+    -Djava.library.path="${JAVA_LIBRARY_PATH:-/usr/lib/jni}" \
+    -classpath "${CLASSPATH}:core.jar:processing-dbus.jar" \
+    processing.dbus.Server

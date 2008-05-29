@@ -1,0 +1,44 @@
+#!/bin/sh
+
+usage () {
+    echo $0 "<jarfile> <arguments...>"
+    exit -1
+}
+
+test x$1 != x || usage
+
+jar=$1
+test -e $jar || usage
+shift
+
+if test -z ${DBUS_SESSION_BUS_ADDRESS}
+then
+    echo Please set DBUS_SESSION_BUS_ADDRESS
+    exit -1
+fi
+
+absolute_path () {
+	local D
+	local F
+	D=$(dirname $1)
+	F=$(basename $1)
+	echo -n "`cd \"$D\" 2>/dev/null && pwd || echo \"$D\"`"
+	echo /$F
+}
+
+content="array:string:$(absolute_path $jar)"
+
+for arg in $@
+do
+    content=${content}string:$@,
+done
+
+echo Launching $jar
+
+exec dbus-send \
+    --session \
+    --type=method_call \
+    --dest=processing.dbus.Launcher \
+    /processing/dbus/Launcher \
+    processing.dbus.Launcher.load \
+    "${content}"
