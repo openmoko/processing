@@ -8,9 +8,9 @@ JAVAC ?= javac
 JAR ?= jar
 
 .PHONY: all
-all: dbus.jar
+all: processing-dbus.jar
 
-dbus.jar: $(wildcard src/processing/dbus/*.java)
+processing-dbus.jar: $(wildcard src/processing/dbus/*.java)
 	rm -rf classes
 	mkdir classes
 	${JAVAC} -classpath "${JARFILES}:../core/bin" -sourcepath src -d classes $^
@@ -18,4 +18,4 @@ dbus.jar: $(wildcard src/processing/dbus/*.java)
 
 .PHONY: clean
 clean:
-	rm -rf classes dbus.jar
+	rm -rf classes processing-dbus.jar
