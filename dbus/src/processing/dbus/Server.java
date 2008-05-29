@@ -47,8 +47,8 @@ class Server implements Launcher {
 	    synchronized (srv) {
 		while (srv.run) {
 		    try {
+			System.out.println("Server ready.");
 			srv.wait();
-			System.out.println("awake.  run = " + srv.run);
 		    } catch (InterruptedException e) {}
 		}
 		c.disconnect();
