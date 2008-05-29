@@ -2,7 +2,7 @@
 
 usage () {
     echo $0 "<jarfile> <arguments...>"
-    exit -1
+    exit 1
 }
 
 test x$1 != x || usage
@@ -14,7 +14,7 @@ shift
 if test -z ${DBUS_SESSION_BUS_ADDRESS}
 then
     echo Please set DBUS_SESSION_BUS_ADDRESS
-    exit -1
+    exit 1
 fi
 
 absolute_path () {
